@@ -84,6 +84,7 @@ def init_state():
         "selected_options_for_current_q": [],
         "logged_in": False,
         "username": "",
+        "auth_mode": "login",  # "login" или "register"
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -895,42 +896,49 @@ def login_screen():
     st.markdown("<h1 style='text-align: center; margin-top: 5rem;'>Вход в систему</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        with st.form("auth_form"):
-            username = st.text_input("Логин")
-            password = st.text_input("Пароль", type="password")
-            
-            btn_col1, btn_col2 = st.columns(2)
-            with btn_col1:
-                login_btn = st.form_submit_button("Войти", use_container_width=True)
-            with btn_col2:
-                reg_btn = st.form_submit_button("Регистрация", use_container_width=True)
-            
-            if login_btn:
-                if not username or not password:
-                    st.error("Заполните логин и пароль")
-                else:
-                    users = load_users()
-                    if username in users and users[username] == password:
-                        st.session_state.logged_in = True
-                        st.session_state.username = username
-                        
-                        st.session_state.quiz_history = load_json_file(get_user_file("history"), [])
-                        st.session_state.weak_data = load_json_file(get_user_file("weak"), [])
-                        st.rerun()
+        # Переключатель режима
+        auth_mode = st.radio("", ["Вход", "Регистрация"], horizontal=True, label_visibility="collapsed")
+        
+        if auth_mode == "Вход":
+            with st.form("login_form"):
+                username = st.text_input("Логин")
+                password = st.text_input("Пароль", type="password")
+                submitted = st.form_submit_button("Войти", use_container_width=True)
+                
+                if submitted:
+                    if not username or not password:
+                        st.error("Заполните логин и пароль")
                     else:
-                        st.error("Неверный логин или пароль")
-            
-            if reg_btn:
-                if not username or not password:
-                    st.error("Заполните логин и пароль")
-                else:
-                    users = load_users()
-                    if username in users:
-                        st.error("Пользователь с таким логином уже существует")
+                        users = load_users()
+                        if username in users and users[username] == password:
+                            st.session_state.logged_in = True
+                            st.session_state.username = username
+                            
+                            st.session_state.quiz_history = load_json_file(get_user_file("history"), [])
+                            st.session_state.weak_data = load_json_file(get_user_file("weak"), [])
+                            st.rerun()
+                        else:
+                            st.error("Неверный логин или пароль")
+        else:
+            with st.form("register_form"):
+                username = st.text_input("Придумайте логин")
+                password = st.text_input("Придумайте пароль", type="password")
+                password2 = st.text_input("Повторите пароль", type="password")
+                submitted = st.form_submit_button("Зарегистрироваться", use_container_width=True)
+                
+                if submitted:
+                    if not username or not password or not password2:
+                        st.error("Заполните все поля")
+                    elif password != password2:
+                        st.error("Пароли не совпадают")
                     else:
-                        users[username] = password
-                        save_users(users)
-                        st.success("Регистрация успешна! Теперь нажмите 'Войти'.")
+                        users = load_users()
+                        if username in users:
+                            st.error("Пользователь с таким логином уже существует")
+                        else:
+                            users[username] = password
+                            save_users(users)
+                            st.success("Регистрация успешна! Теперь войдите.")
 
 
 def main():
