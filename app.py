@@ -34,6 +34,7 @@ DEFAULT_SETTINGS = {
 
 
 def get_user_file(suffix):
+    """Возвращает путь к файлу конкретного пользователя"""
     username = st.session_state.get("username", "guest")
     return Path(f"{suffix}_{username}.json")
 
@@ -396,9 +397,7 @@ def page_test():
             <p style="color: var(--text-muted); margin-bottom: 0.5rem;">Загрузи фото или PDF. Мы распознаем текст и подготовим вопросы.</p>
         """, unsafe_allow_html=True)
 
-        # Кастомный загрузчик файлов
-        upload = st.file_uploader("Загрузите фото или PDF", type=["jpg", "jpeg", "png", "pdf"], label_visibility="collapsed", key="file_uploader")
-        
+        upload = st.file_uploader("Загрузите фото или PDF", type=["jpg", "jpeg", "png", "pdf"], label_visibility="collapsed")
         if upload:
             if upload.size > MAX_IMAGE_SIZE:
                 st.error("Файл больше 15 МБ.")
@@ -801,30 +800,21 @@ def apply_theme():
     [data-testid="stPills"] button[aria-checked="true"], [data-testid="stPills"] button[aria-pressed="true"] { background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important; border-color: transparent !important; color: #ffffff !important; font-weight: 600 !important; }
     [data-testid="stPills"] button[aria-checked="false"] { background-color: var(--pill-bg) !important; background-image: none !important; color: var(--pill-text) !important; border: 1.5px solid var(--pill-border) !important; }
 
-    /* --- БЛОК ЗАГРУЗКИ ФАЙЛА (ГРАДИЕНТНАЯ КНОПКА) --- */
     [data-testid="stFileUploader"] { 
         border: 2px dashed var(--glass-border) !important; 
         border-radius: 20px !important; 
-        background-color: var(--panel-bg) !important; 
+        background-color: #ffffff !important; 
         padding: 10px !important; 
     }
-    /* Стилизация кнопки внутри загрузчика */
-    [data-testid="stFileUploader"] button {
-        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%) !important;
-        color: #ffffff !important;
-        border: 0 !important;
-        border-radius: 12px !important;
-        padding: 0.5rem 1.2rem !important;
-        font-family: 'Montserrat', sans-serif !important;
-        font-size: 0.9rem !important;
-        font-weight: 600 !important;
-        letter-spacing: 0.05em !important;
-        box-shadow: 0 4px 12px rgba(91, 141, 239, 0.24) !important;
-        transition: all 0.2s !important;
+    [data-testid="stFileUploader"] button { 
+        background-color: #ffffff !important; 
+        color: #1a2842 !important; 
+        border: 1px solid #d0dae8 !important;
     }
     [data-testid="stFileUploader"] button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 20px rgba(91, 141, 239, 0.4) !important;
+        background-color: #f4f8ff !important;
+        border-color: var(--accent) !important;
+        color: var(--accent) !important;
     }
 
     hr { border: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--panel-border), transparent); margin: 2rem 0; }
@@ -955,6 +945,7 @@ def main():
             st.session_state.current_page = key
             st.rerun()
 
+    # Кнопка выхода
     if st.sidebar.button("Выйти", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.username = ""
