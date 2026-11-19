@@ -7,6 +7,7 @@ from pathlib import Path
 from datetime import datetime
 import io
 import html
+import hashlib
 
 import streamlit as st
 from dotenv import load_dotenv
@@ -21,9 +22,12 @@ load_dotenv(dotenv_path=Path(__file__).parent / ".env")
 APP_NAME = "ИИ-преподаватель"
 APP_VERSION = "20.1.0"
 AUTHOR = "Марина Левченко"
-WEAK_FILE = Path("weak_questions.json")
-HISTORY_FILE = Path("history.json")
 MAX_IMAGE_SIZE = 15 * 1024 * 1024
+
+# Пути к файлам данных
+USERS_FILE = Path("users.json")
+# Для каждого пользователя файлы будут создаваться динамически
+# Например: history_student1.json, weak_student1.json
 
 DEFAULT_SETTINGS = {
     "question_count": 5,
@@ -33,6 +37,18 @@ DEFAULT_SETTINGS = {
     "repeat_threshold": 2,
     "theme": "Тёмная",
 }
+
+
+# --- ФУНКЦИИ ДЛЯ РАБОТЫ С ДАННЫМИ ПОЛЬЗОВАТЕЛЯ ---
+
+def get_user_files(username):
+    """Возвращает пути к файлам истории и слабых мест для пользователя."""
+    safe_name = re.sub(r'[^a-zA-Z0-9_]', '', username)  # Безопасное имя файла
+    return {
+        "history": Path(f"history_{safe_name}.json"),
+        "weak": Path(f"weak_{safe_name}.json"),
+        "settings": Path(f"settings_{safe_name}.json")
+    }
 
 
 def load_json_file(path, default):
@@ -56,38 +72,156 @@ def save_json_file(path, data):
         st.error(f"Не удалось сохранить {path.name}: {exc}")
 
 
-def load_weak_questions():
-    return load_json_file(WEAK_FILE, [])
+def load_users():
+    """Загружает список пользователей (логин: хэш_пароля)."""
+    return load_json_file(USERS_FILE, {})
 
-def save_weak_questions():
-    save_json_file(WEAK_FILE, st.session_state.weak_data)
 
-def load_history():
-    return load_json_file(HISTORY_FILE, [])
+def hash_password(password):
+    """Хэширует пароль для безопасного хранения."""
+    return hashlib.sha256(password.encode()).hexdigest()
 
-def save_history():
-    save_json_file(HISTORY_FILE, st.session_state.quiz_history)
 
+# --- ИНИЦИАЛИЗАЦИЯ СОСТОЯНИЯ ---
 
 def init_state():
-    defaults = {
-        "settings": DEFAULT_SETTINGS.copy(),
-        "quiz_history": load_history(),
-        "weak_data": load_weak_questions(),
-        "current_page": "test",
-        "quiz_active": False,
-        "current_question_idx": 0,
-        "questions_list": [],
-        "user_answers": [],
-        "answered": False,
-        "selected_option": [],
-        "history_saved_for_this_quiz": False,
-        "selected_options_for_current_q": [],
-    }
-    for key, value in defaults.items():
-        if key not in st.session_state:
-            st.session_state[key] = value
+    if "authenticated" not in st.session_state:
+        st.session_state.authenticated = False
+        st.session_state.username = None
+    
+    # Если пользователь авторизован, загружаем его данные
+    if st.session_state.authenticated and st.session_state.username:
+        user_files = get_user_files(st.session_state.username)
+        
+        if "settings" not in st.session_state:
+            user_settings = load_json_file(user_files["settings"], DEFAULT_SETTINGS.copy())
+            st.session_state.settings = {**DEFAULT_SETTINGS, **user_settings}  # Объединяем с дефолтными
+        
+        if "quiz_history" not in st.session_state:
+            st.session_state.quiz_history = load_json_file(user_files["history"], [])
+        
+        if "weak_data" not in st.session_state:
+            st.session_state.weak_data = load_json_file(user_files["weak"], [])
+    else:
+        # Для неавторизованных — пустые значения
+        st.session_state.settings = DEFAULT_SETTINGS.copy()
+        st.session_state.quiz_history = []
+        st.session_state.weak_data = []
+    
+    # Общие состояния
+    if "current_page" not in st.session_state:
+        st.session_state.current_page = "test"
+    if "quiz_active" not in st.session_state:
+        st.session_state.quiz_active = False
+    if "current_question_idx" not in st.session_state:
+        st.session_state.current_question_idx = 0
+    if "questions_list" not in st.session_state:
+        st.session_state.questions_list = []
+    if "user_answers" not in st.session_state:
+        st.session_state.user_answers = []
+    if "answered" not in st.session_state:
+        st.session_state.answered = False
+    if "selected_option" not in st.session_state:
+        st.session_state.selected_option = []
+    if "history_saved_for_this_quiz" not in st.session_state:
+        st.session_state.history_saved_for_this_quiz = False
+    if "selected_options_for_current_q" not in st.session_state:
+        st.session_state.selected_options_for_current_q = []
 
+
+def save_user_data():
+    """Сохраняет данные текущего пользователя в его файлы."""
+    if not st.session_state.authenticated or not st.session_state.username:
+        return
+    user_files = get_user_files(st.session_state.username)
+    save_json_file(user_files["history"], st.session_state.quiz_history)
+    save_json_file(user_files["weak"], st.session_state.weak_data)
+    save_json_file(user_files["settings"], st.session_state.settings)
+
+
+# --- АУТЕНТИФИКАЦИЯ ---
+
+def login_page():
+    """Страница входа в систему."""
+    st.markdown("""
+    <div style="max-width: 400px; margin: 0 auto; padding: 2rem; background: var(--glass-bg); border-radius: 24px; border: 1px solid var(--glass-border); box-shadow: var(--shadow-soft);">
+        <h2 style="text-align: center; margin-bottom: 2rem;">Вход в систему</h2>
+    """, unsafe_allow_html=True)
+    
+    username = st.text_input("Логин", placeholder="Введите логин")
+    password = st.text_input("Пароль", type="password", placeholder="Введите пароль")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Войти", type="primary", use_container_width=True):
+            users = load_users()
+            if username in users and users[username] == hash_password(password):
+                st.session_state.authenticated = True
+                st.session_state.username = username
+                # Загружаем данные пользователя
+                init_state()
+                st.rerun()
+            else:
+                st.error("Неверный логин или пароль")
+    
+    with col2:
+        if st.button("Регистрация", use_container_width=True):
+            st.session_state.current_page = "register"
+            st.rerun()
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def register_page():
+    """Страница регистрации нового пользователя."""
+    st.markdown("""
+    <div style="max-width: 400px; margin: 0 auto; padding: 2rem; background: var(--glass-bg); border-radius: 24px; border: 1px solid var(--glass-border); box-shadow: var(--shadow-soft);">
+        <h2 style="text-align: center; margin-bottom: 2rem;">Регистрация</h2>
+    """, unsafe_allow_html=True)
+    
+    new_username = st.text_input("Придумайте логин", placeholder="Только латиница и цифры")
+    new_password = st.text_input("Придумайте пароль", type="password", placeholder="Минимум 4 символа")
+    confirm_password = st.text_input("Повторите пароль", type="password", placeholder="Повторите пароль")
+    
+    if st.button("Зарегистрироваться", type="primary", use_container_width=True):
+        if not new_username or not new_password:
+            st.error("Заполните все поля")
+        elif len(new_password) < 4:
+            st.error("Пароль должен быть не менее 4 символов")
+        elif new_password != confirm_password:
+            st.error("Пароли не совпадают")
+        else:
+            users = load_users()
+            if new_username in users:
+                st.error("Такой логин уже существует")
+            else:
+                users[new_username] = hash_password(new_password)
+                save_json_file(USERS_FILE, users)
+                st.success("Вы успешно зарегистрированы! Теперь войдите.")
+                st.session_state.current_page = "login"
+                st.rerun()
+    
+    if st.button("Вернуться ко входу", use_container_width=True):
+        st.session_state.current_page = "login"
+        st.rerun()
+    
+    st.markdown("</div>", unsafe_allow_html=True)
+
+
+def logout():
+    """Выход из системы."""
+    save_user_data()  # Сохраняем данные перед выходом
+    st.session_state.authenticated = False
+    st.session_state.username = None
+    # Сбрасываем данные
+    for key in ["settings", "quiz_history", "weak_data", "quiz_active", "questions_list", "user_answers"]:
+        if key in st.session_state:
+            del st.session_state[key]
+    st.session_state.current_page = "test"
+    st.rerun()
+
+
+# --- API GIGACHAT ---
 
 def get_lc_gigachat():
     client_id = os.getenv("GIGACHAT_CLIENT_ID")
@@ -203,7 +337,7 @@ def add_weak_question(question, answer, explanation):
             item["correct_answer"] = answer
             item["explanation"] = explanation
             item["last_seen"] = datetime.now().isoformat(timespec="seconds")
-            save_weak_questions()
+            save_user_data()  # Сохраняем данные пользователя
             return
     st.session_state.weak_data.append({
         "id": f"{int(time.time() * 1000)}",
@@ -212,8 +346,10 @@ def add_weak_question(question, answer, explanation):
         "created_at": datetime.now().isoformat(timespec="seconds"),
         "last_seen": datetime.now().isoformat(timespec="seconds"),
     })
-    save_weak_questions()
+    save_user_data()
 
+
+# --- СТРАНИЦЫ ПРИЛОЖЕНИЯ ---
 
 def page_test():
     history = st.session_state.quiz_history
@@ -240,7 +376,7 @@ def page_test():
                     "total": total_count
                 })
                 st.session_state.history_saved_for_this_quiz = True
-                save_history()
+                save_user_data()  # Сохраняем данные
 
             st.caption("ТЕСТ ЗАВЕРШЕН")
             st.title("Отличная работа!")
@@ -290,10 +426,8 @@ def page_test():
             st.session_state[f"q_init_{q_idx}"] = True
 
         if not st.session_state.answered:
-            # Используем обычные кнопки с кастомным CSS
             for option in current_q["options"]:
                 is_selected = option in st.session_state.selected_options_for_current_q
-                # Показываем кнопку
                 if st.button(option, key=f"opt_btn_{q_idx}_{option}", use_container_width=True, type="primary" if is_selected else "secondary"):
                     if is_selected:
                         st.session_state.selected_options_for_current_q.remove(option)
@@ -585,9 +719,30 @@ def page_stats():
 
     if history:
         st.markdown('<div class="chart-container"><h3>Динамика правильных ответов</h3></div>', unsafe_allow_html=True)
-        chart_data = [{"Дата": h["date"][:10], "Результат": round(h["correct"] / h["total"] * 100)} for h in history[-10:] if h["total"]]
-        if chart_data:
-            st.bar_chart(chart_data, x="Дата", y="Результат", use_container_width=True)
+        
+        # Берем последние 10 тестов
+        recent_history = [h for h in history[-10:] if h["total"]]
+        
+        if recent_history:
+            # Строим кастомный график на HTML/CSS
+            bars_html = '<div class="custom-chart">'
+            for h in recent_history:
+                percent = round(h["correct"] / h["total"] * 100)
+                date_str = h["date"][:10]  # Берем только дату
+                
+                # Цвет столбика в зависимости от результата
+                color = "var(--accent)" if percent >= 50 else "#ef4444"
+                
+                bars_html += f'''
+                <div class="chart-bar-wrapper">
+                    <div class="chart-bar-value">{percent}%</div>
+                    <div class="chart-bar" style="height: {max(percent, 5)}%; background: {color};"></div>
+                    <div class="chart-bar-label">{date_str[5:]}</div>
+                </div>
+                '''
+            bars_html += '</div>'
+            
+            st.markdown(bars_html, unsafe_allow_html=True)
     else:
         st.info("Пока нет данных. Пройди первый тест!")
 
@@ -633,6 +788,7 @@ def page_settings():
             is_active = (s["question_count"] == opt)
             if st.button(str(opt), key=f"qc_{opt}", use_container_width=True, type="primary" if is_active else "secondary"):
                 s["question_count"] = opt
+                save_user_data()  # Сохраняем настройки пользователя
                 st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -645,6 +801,7 @@ def page_settings():
             is_active = (s["difficulty"] == opt)
             if st.button(opt, key=f"diff_{opt}", use_container_width=True, type="primary" if is_active else "secondary"):
                 s["difficulty"] = opt
+                save_user_data()
                 st.rerun()
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -657,6 +814,7 @@ def page_settings():
             is_active = (s["language"] == opt)
             if st.button(opt, key=f"lang_{opt}", use_container_width=True, type="primary" if is_active else "secondary"):
                 s["language"] = opt
+                save_user_data()
                 st.rerun()
 
     st.markdown("### Внешний вид")
@@ -669,15 +827,16 @@ def page_settings():
             is_active = (s["theme"] == opt)
             if st.button(opt, key=f"theme_{opt}", use_container_width=True, type="primary" if is_active else "secondary"):
                 s["theme"] = opt
+                save_user_data()
                 st.rerun()
 
     st.markdown("### Данные")
     export = {"app": APP_NAME, "version": APP_VERSION, "exported_at": datetime.now().isoformat(timespec="seconds"), "settings": s, "history": st.session_state.quiz_history, "weak_questions": st.session_state.weak_data}
-    st.download_button("Скачать мои результаты (JSON)", data=json.dumps(export, ensure_ascii=False, indent=2), file_name="ai_teacher_results.json", mime="application/json")
+    st.download_button("Скачать мои результаты (JSON)", data=json.dumps(export, ensure_ascii=False, indent=2), file_name=f"results_{st.session_state.username}.json", mime="application/json")
 
     if st.button("Очистить историю"):
         st.session_state.quiz_history = []
-        save_history()
+        save_user_data()
         st.rerun()
 
     st.markdown("### О приложении")
@@ -708,6 +867,8 @@ def page_about():
     st.write(f"**Версия:** {APP_VERSION}")
     st.write(f"**Автор:** {AUTHOR}")
 
+
+# --- ТЕМА ---
 
 def apply_theme():
     theme = st.session_state.settings.get("theme", "Тёмная")
@@ -762,11 +923,6 @@ def apply_theme():
     p, label, .stMarkdown, span { color: var(--text-main); line-height: 1.6; }
     [data-testid="stCaptionContainer"] { color: var(--text-muted) !important; }
 
-    .hero-card { padding: 2.2rem; border-radius: 28px; margin-bottom: 2rem; background: linear-gradient(135deg, rgba(99,140,255,0.18) 0%, rgba(168,120,255,0.14) 100%); border: 1px solid var(--glass-border); box-shadow: 0 20px 60px rgba(0,0,0,0.20); }
-    .hero-label { font-size: .72rem; font-weight: 600; letter-spacing: .22em; opacity: .65; margin-bottom: .9rem; }
-    .hero-title { font-family: 'Playfair Display', serif; font-size: 2.4rem; font-weight: 600; margin-bottom: .8rem; background: linear-gradient(135deg, var(--text-main) 0%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
-    .hero-subtitle { font-size: 1rem; color: var(--text-muted); }
-
     div[data-testid="stMetric"], div[data-testid="stExpander"], div[data-testid="stForm"], div[data-testid="stAlert"], div[data-testid="stFileUploader"], div[data-testid="stImage"], .stChatMessage { background: var(--glass-bg); backdrop-filter: blur(20px); border: 1px solid var(--glass-border); border-radius: 24px; box-shadow: var(--shadow-soft); overflow: hidden; }
     div[data-testid="stImage"]:hover, div[data-testid="stExpander"]:hover, div[data-testid="stMetric"]:hover, .stChatMessage:hover { transform: translateY(-4px); }
 
@@ -787,13 +943,6 @@ def apply_theme():
         box-shadow: 0 10px 24px rgba(91, 141, 239, 0.24); 
     }
     div.stButton > button:hover { transform: translateY(-2px); box-shadow: 0 16px 36px rgba(91, 141, 239, 0.34); }
-
-    [data-testid="stPills"] > label { display: none !important; }
-    [data-testid="stPills"] div[role="radiogroup"] { display: flex !important; gap: .6rem !important; flex-wrap: wrap !important; }
-    [data-testid="stPills"] button { background: var(--pill-bg) !important; border: 1.5px solid var(--pill-border) !important; border-radius: 14px !important; color: var(--pill-text) !important; padding: .7rem 1.4rem !important; font-weight: 500 !important; box-shadow: none !important; transition: all .22s !important; }
-    [data-testid="stPills"] button:hover { border-color: var(--accent) !important; transform: translateY(-2px) !important; }
-    [data-testid="stPills"] button[aria-checked="true"], [data-testid="stPills"] button[aria-pressed="true"] { background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important; border-color: transparent !important; color: #ffffff !important; font-weight: 600 !important; }
-    [data-testid="stPills"] button[aria-checked="false"] { background-color: var(--pill-bg) !important; background-image: none !important; color: var(--pill-text) !important; border: 1.5px solid var(--pill-border) !important; }
 
     /* ИСПРАВЛЕНИЕ 1: Светлая кнопка загрузки файла на светлой теме */
     [data-testid="stFileUploader"] { 
@@ -954,6 +1103,51 @@ def apply_theme():
         margin: 0 !important;
     }
 
+    /* --- КАСТОМНЫЙ ГРАФИК --- */
+    .custom-chart {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-around;
+        height: 200px;
+        background: var(--glass-bg);
+        border: 1px solid var(--glass-border);
+        border-radius: 20px;
+        padding: 20px;
+        margin-top: 1rem;
+        gap: 10px;
+    }
+    .chart-bar-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-end;
+        height: 100%;
+        flex: 1;
+    }
+    .chart-bar {
+        width: 100%;
+        max-width: 40px;
+        border-radius: 8px 8px 0 0;
+        transition: height 0.5s ease;
+        min-height: 5px;
+        position: relative;
+    }
+    .chart-bar:hover {
+        filter: brightness(1.2);
+    }
+    .chart-bar-value {
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: var(--text-main);
+        margin-bottom: 5px;
+    }
+    .chart-bar-label {
+        font-size: 0.7rem;
+        color: var(--text-muted);
+        margin-top: 8px;
+        white-space: nowrap;
+    }
+
     /* --- Настройки: кнопки-«пилюли», не похожие на главные CTA --- */
     div.stButton > button[kind="secondary"],
     div.stButton > button[kind="primary"] {
@@ -1029,16 +1223,29 @@ def apply_theme():
     st.markdown(css, unsafe_allow_html=True)
 
 
+# --- ГЛАВНАЯ ФУНКЦИЯ ---
+
 def main():
     st.set_page_config(page_title=APP_NAME, page_icon="📘", layout="wide", initial_sidebar_state="expanded")
     init_state()
     apply_theme()
 
+    # Проверка авторизации
+    if not st.session_state.authenticated:
+        # Показываем страницы входа/регистрации
+        if st.session_state.get("current_page") == "register":
+            register_page()
+        else:
+            login_page()
+        return  # Не показываем основное приложение, пока не вошли
+
+    # --- БОКОВАЯ ПАНЕЛЬ (только для авторизованных) ---
     st.sidebar.markdown(
-        """
+        f"""
         <div style="padding:.8rem .6rem 1.6rem;">
             <div style="width:48px;height:48px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#638cff,#a878ff);color:white;font-size:1.4rem;margin-bottom:1rem;box-shadow:0 12px 28px rgba(99,140,255,.35);">✦</div>
             <div style="font-family:'Playfair Display', serif; font-size:1.2rem;font-weight:600;color:var(--text-main);">AI Teacher</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-top:0.2rem;">Пользователь: <b>{st.session_state.username}</b></div>
         </div>
         """,
         unsafe_allow_html=True,
@@ -1066,6 +1273,12 @@ def main():
             st.session_state.current_page = key
             st.rerun()
 
+    # Кнопка выхода
+    st.sidebar.markdown("---")
+    if st.sidebar.button("Выйти", use_container_width=True):
+        logout()
+
+    # Отображение выбранной страницы
     if st.session_state.current_page == "test": page_test()
     elif st.session_state.current_page == "weak": page_weak()
     elif st.session_state.current_page == "stats": page_stats()
