@@ -1,1 +1,8 @@
-python --version
+streamlit
+langchain-gigachat
+langchain-core
+streamlit-autorefresh
+PyMuPDF
+python-dotenv
+gigachat
+Pillow
