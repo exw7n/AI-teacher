@@ -22,7 +22,6 @@ APP_NAME = "ИИ-преподаватель"
 APP_VERSION = "20.1.0"
 AUTHOR = "Марина Левченко"
 MAX_IMAGE_SIZE = 15 * 1024 * 1024
-USERS_FILE = Path("users.json")
 
 DEFAULT_SETTINGS = {
     "question_count": 5,
@@ -35,7 +34,6 @@ DEFAULT_SETTINGS = {
 
 
 def get_user_file(suffix):
-    """Возвращает путь к файлу конкретного пользователя"""
     username = st.session_state.get("username", "guest")
     return Path(f"{suffix}_{username}.json")
 
@@ -59,13 +57,6 @@ def save_json_file(path, data):
         temp_path.replace(path)
     except OSError as exc:
         st.error(f"Не удалось сохранить {path.name}: {exc}")
-
-
-def load_users():
-    return load_json_file(USERS_FILE, {})
-
-def save_users(users):
-    save_json_file(USERS_FILE, users)
 
 
 def init_state():
@@ -808,21 +799,30 @@ def apply_theme():
     [data-testid="stPills"] button[aria-checked="true"], [data-testid="stPills"] button[aria-pressed="true"] { background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important; border-color: transparent !important; color: #ffffff !important; font-weight: 600 !important; }
     [data-testid="stPills"] button[aria-checked="false"] { background-color: var(--pill-bg) !important; background-image: none !important; color: var(--pill-text) !important; border: 1.5px solid var(--pill-border) !important; }
 
+    /* --- БЛОК ЗАГРУЗКИ ФАЙЛА (ГРАДИЕНТНАЯ КНОПКА) --- */
     [data-testid="stFileUploader"] { 
         border: 2px dashed var(--glass-border) !important; 
         border-radius: 20px !important; 
-        background-color: #ffffff !important; 
+        background-color: var(--panel-bg) !important; 
         padding: 10px !important; 
     }
-    [data-testid="stFileUploader"] button { 
-        background-color: #ffffff !important; 
-        color: #1a2842 !important; 
-        border: 1px solid #d0dae8 !important;
+    /* Стилизация кнопки внутри загрузчика */
+    [data-testid="stFileUploader"] button {
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%) !important;
+        color: #ffffff !important;
+        border: 0 !important;
+        border-radius: 12px !important;
+        padding: 0.5rem 1.2rem !important;
+        font-family: 'Montserrat', sans-serif !important;
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.05em !important;
+        box-shadow: 0 4px 12px rgba(91, 141, 239, 0.24) !important;
+        transition: all 0.2s !important;
     }
     [data-testid="stFileUploader"] button:hover {
-        background-color: #f4f8ff !important;
-        border-color: var(--accent) !important;
-        color: var(--accent) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 20px rgba(91, 141, 239, 0.4) !important;
     }
 
     hr { border: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--panel-border), transparent); margin: 2rem 0; }
@@ -895,45 +895,21 @@ def login_screen():
     st.markdown("<h1 style='text-align: center; margin-top: 5rem;'>Вход в систему</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        with st.form("auth_form"):
+        with st.form("login_form"):
             username = st.text_input("Логин")
             password = st.text_input("Пароль", type="password")
-            password2 = st.text_input("Повторите пароль", type="password")  # Поле для регистрации
+            submitted = st.form_submit_button("Войти", use_container_width=True)
             
-            btn_col1, btn_col2 = st.columns(2)
-            with btn_col1:
-                login_btn = st.form_submit_button("Войти", use_container_width=True)
-            with btn_col2:
-                reg_btn = st.form_submit_button("Регистрация", use_container_width=True)
-            
-            if login_btn:
-                if not username or not password:
-                    st.error("Заполните логин и пароль")
+            if submitted:
+                if username and password:
+                    st.session_state.logged_in = True
+                    st.session_state.username = username
+                    
+                    st.session_state.quiz_history = load_json_file(get_user_file("history"), [])
+                    st.session_state.weak_data = load_json_file(get_user_file("weak"), [])
+                    st.rerun()
                 else:
-                    users = load_users()
-                    if username in users and users[username] == password:
-                        st.session_state.logged_in = True
-                        st.session_state.username = username
-                        
-                        st.session_state.quiz_history = load_json_file(get_user_file("history"), [])
-                        st.session_state.weak_data = load_json_file(get_user_file("weak"), [])
-                        st.rerun()
-                    else:
-                        st.error("Неверный логин или пароль")
-            
-            if reg_btn:
-                if not username or not password or not password2:
-                    st.error("Заполните все поля")
-                elif password != password2:
-                    st.error("Пароли не совпадают")
-                else:
-                    users = load_users()
-                    if username in users:
-                        st.error("Пользователь с таким логином уже существует")
-                    else:
-                        users[username] = password
-                        save_users(users)
-                        st.success("Регистрация успешна! Теперь нажмите 'Войти'.")
+                    st.error("Введите логин и пароль")
 
 
 def main():
