@@ -396,7 +396,9 @@ def page_test():
             <p style="color: var(--text-muted); margin-bottom: 0.5rem;">Загрузи фото или PDF. Мы распознаем текст и подготовим вопросы.</p>
         """, unsafe_allow_html=True)
 
-        upload = st.file_uploader("Загрузите фото или PDF", type=["jpg", "jpeg", "png", "pdf"], label_visibility="collapsed")
+        # Кастомный загрузчик файлов
+        upload = st.file_uploader("Загрузите фото или PDF", type=["jpg", "jpeg", "png", "pdf"], label_visibility="collapsed", key="file_uploader")
+        
         if upload:
             if upload.size > MAX_IMAGE_SIZE:
                 st.error("Файл больше 15 МБ.")
