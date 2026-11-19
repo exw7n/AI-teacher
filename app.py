@@ -22,6 +22,7 @@ APP_NAME = "ИИ-преподаватель"
 APP_VERSION = "20.1.0"
 AUTHOR = "Марина Левченко"
 MAX_IMAGE_SIZE = 15 * 1024 * 1024
+USERS_FILE = Path("users.json")
 
 DEFAULT_SETTINGS = {
     "question_count": 5,
@@ -58,6 +59,13 @@ def save_json_file(path, data):
         temp_path.replace(path)
     except OSError as exc:
         st.error(f"Не удалось сохранить {path.name}: {exc}")
+
+
+def load_users():
+    return load_json_file(USERS_FILE, {})
+
+def save_users(users):
+    save_json_file(USERS_FILE, users)
 
 
 def init_state():
@@ -887,21 +895,42 @@ def login_screen():
     st.markdown("<h1 style='text-align: center; margin-top: 5rem;'>Вход в систему</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        with st.form("login_form"):
+        with st.form("auth_form"):
             username = st.text_input("Логин")
             password = st.text_input("Пароль", type="password")
-            submitted = st.form_submit_button("Войти", use_container_width=True)
             
-            if submitted:
-                if username and password:
-                    st.session_state.logged_in = True
-                    st.session_state.username = username
-                    
-                    st.session_state.quiz_history = load_json_file(get_user_file("history"), [])
-                    st.session_state.weak_data = load_json_file(get_user_file("weak"), [])
-                    st.rerun()
+            btn_col1, btn_col2 = st.columns(2)
+            with btn_col1:
+                login_btn = st.form_submit_button("Войти", use_container_width=True)
+            with btn_col2:
+                reg_btn = st.form_submit_button("Регистрация", use_container_width=True)
+            
+            if login_btn:
+                if not username or not password:
+                    st.error("Заполните логин и пароль")
                 else:
-                    st.error("Введите логин и пароль")
+                    users = load_users()
+                    if username in users and users[username] == password:
+                        st.session_state.logged_in = True
+                        st.session_state.username = username
+                        
+                        st.session_state.quiz_history = load_json_file(get_user_file("history"), [])
+                        st.session_state.weak_data = load_json_file(get_user_file("weak"), [])
+                        st.rerun()
+                    else:
+                        st.error("Неверный логин или пароль")
+            
+            if reg_btn:
+                if not username or not password:
+                    st.error("Заполните логин и пароль")
+                else:
+                    users = load_users()
+                    if username in users:
+                        st.error("Пользователь с таким логином уже существует")
+                    else:
+                        users[username] = password
+                        save_users(users)
+                        st.success("Регистрация успешна! Теперь нажмите 'Войти'.")
 
 
 def main():
@@ -945,7 +974,6 @@ def main():
             st.session_state.current_page = key
             st.rerun()
 
-    # Кнопка выхода
     if st.sidebar.button("Выйти", use_container_width=True):
         st.session_state.logged_in = False
         st.session_state.username = ""
