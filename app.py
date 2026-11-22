@@ -83,7 +83,7 @@ def init_state():
         "selected_options_for_current_q": [],
         "logged_in": False,
         "username": "",
-        "auth_mode": "login",
+        "auth_mode": "login",  # "login" или "register"
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -838,21 +838,30 @@ def apply_theme():
     [data-testid="stPills"] button[aria-checked="true"], [data-testid="stPills"] button[aria-pressed="true"] { background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important; border-color: transparent !important; color: #ffffff !important; font-weight: 600 !important; }
     [data-testid="stPills"] button[aria-checked="false"] { background-color: var(--pill-bg) !important; background-image: none !important; color: var(--pill-text) !important; border: 1.5px solid var(--pill-border) !important; }
 
+    /* --- БЛОК ЗАГРУЗКИ ФАЙЛА (ГРАДИЕНТНАЯ КНОПКА) --- */
     [data-testid="stFileUploader"] { 
         border: 2px dashed var(--glass-border) !important; 
         border-radius: 20px !important; 
-        background-color: #ffffff !important; 
+        background-color: var(--panel-bg) !important; 
         padding: 10px !important; 
     }
-    [data-testid="stFileUploader"] button { 
-        background-color: #ffffff !important; 
-        color: #1a2842 !important; 
-        border: 1px solid #d0dae8 !important;
+    /* Стилизация кнопки внутри загрузчика */
+    [data-testid="stFileUploader"] button {
+        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%) !important;
+        color: #ffffff !important;
+        border: 0 !important;
+        border-radius: 12px !important;
+        padding: 0.5rem 1.2rem !important;
+        font-family: 'Montserrat', sans-serif !important;
+        font-size: 0.9rem !important;
+        font-weight: 600 !important;
+        letter-spacing: 0.05em !important;
+        box-shadow: 0 4px 12px rgba(91, 141, 239, 0.24) !important;
+        transition: all 0.2s !important;
     }
     [data-testid="stFileUploader"] button:hover {
-        background-color: #f4f8ff !important;
-        border-color: var(--accent) !important;
-        color: var(--accent) !important;
+        transform: translateY(-2px) !important;
+        box-shadow: 0 8px 20px rgba(91, 141, 239, 0.4) !important;
     }
 
     hr { border: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--panel-border), transparent); margin: 2rem 0; }
