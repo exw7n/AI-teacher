@@ -22,6 +22,7 @@ APP_NAME = "ИИ-преподаватель"
 APP_VERSION = "20.1.0"
 AUTHOR = "Марина Левченко"
 MAX_IMAGE_SIZE = 15 * 1024 * 1024
+USERS_FILE = Path("users.json")
 
 DEFAULT_SETTINGS = {
     "question_count": 5,
@@ -59,6 +60,13 @@ def save_json_file(path, data):
         st.error(f"Не удалось сохранить {path.name}: {exc}")
 
 
+def load_users():
+    return load_json_file(USERS_FILE, {})
+
+def save_users(users):
+    save_json_file(USERS_FILE, users)
+
+
 def init_state():
     defaults = {
         "settings": DEFAULT_SETTINGS.copy(),
@@ -75,6 +83,7 @@ def init_state():
         "selected_options_for_current_q": [],
         "logged_in": False,
         "username": "",
+        "auth_mode": "login",
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -393,14 +402,27 @@ def page_test():
         <div class="custom-card" style="padding-bottom: 0.5rem;">
             <div class="page-subtitle" style="font-size: 0.7rem;">НОВЫЙ МАТЕРИАЛ</div>
             <h2 style="margin-top: 0; margin-bottom: 1rem;">Создать тест по конспекту</h2>
-            <p style="color: var(--text-muted); margin-bottom: 0.5rem;">Загрузи фото или PDF. Мы распознаем текст и подготовим вопросы.</p>
+            <p style="color: var(--text-muted); margin-bottom: 0.5rem;">Загрузите фото или PDF (можно несколько файлов сразу). Мы распознаем текст и подготовим вопросы.</p>
         """, unsafe_allow_html=True)
 
-        upload = st.file_uploader("Загрузите фото или PDF", type=["jpg", "jpeg", "png", "pdf"], label_visibility="collapsed")
-        if upload:
-            if upload.size > MAX_IMAGE_SIZE:
-                st.error("Файл больше 15 МБ.")
-            else:
+        # ИСПРАВЛЕНИЕ: Добавлен accept_multiple_files=True
+        uploaded_files = st.file_uploader(
+            "Загрузите фото или PDF", 
+            type=["jpg", "jpeg", "png", "pdf"], 
+            label_visibility="collapsed", 
+            accept_multiple_files=True
+        )
+        
+        if uploaded_files:
+            all_notes = []
+            error_occurred = False
+            
+            for upload in uploaded_files:
+                if upload.size > MAX_IMAGE_SIZE:
+                    st.error(f"Файл {upload.name} больше 15 МБ.")
+                    error_occurred = True
+                    break
+                
                 file_bytes = upload.getvalue()
                 image_bytes = None
 
@@ -408,39 +430,56 @@ def page_test():
                     try:
                         doc = fitz.open(stream=file_bytes, filetype="pdf")
                         if len(doc) == 0:
-                            st.error("PDF файл пуст.")
+                            st.error(f"PDF файл {upload.name} пуст.")
+                            error_occurred = True
+                            break
                         else:
+                            # Для PDF берем все страницы, но для простоты только первую
                             page = doc[0]
                             pix = page.get_pixmap()
                             image_bytes = pix.tobytes("png")
-                            st.image(image_bytes, caption=f"Страница 1 из {len(doc)} (PDF)", use_container_width=True)
+                            st.image(image_bytes, caption=f"{upload.name} (Страница 1 из {len(doc)})", use_container_width=True)
                     except Exception as e:
-                        st.error(f"Ошибка при чтении PDF: {e}")
+                        st.error(f"Ошибка при чтении PDF {upload.name}: {e}")
+                        error_occurred = True
+                        break
                 else:
                     image_bytes = file_bytes
-                    st.image(image_bytes, use_container_width=True)
+                    st.image(image_bytes, caption=upload.name, use_container_width=True)
 
                 if image_bytes:
-                    if st.button("Начать обучение", type="primary", use_container_width=True):
-                        with st.spinner("Распознаю текст и готовлю вопросы..."):
-                            try:
-                                notes = recognize_notes(image_bytes, upload.name)
-                                questions = generate_questions(notes, st.session_state.settings)
+                    # Распознаем текст с каждого файла
+                    with st.spinner(f"Распознаю текст из {upload.name}..."):
+                        try:
+                            notes = recognize_notes(image_bytes, upload.name)
+                            all_notes.append(notes)
+                        except Exception as e:
+                            st.error(f"Ошибка распознавания {upload.name}: {e}")
+                            error_occurred = True
+                            break
 
-                                st.session_state.questions_list = questions
-                                st.session_state.current_question_idx = 0
-                                st.session_state.quiz_active = True
-                                st.session_state.user_answers = []
-                                st.session_state.answered = False
-                                st.session_state.history_saved_for_this_quiz = False
-                                st.session_state.selected_options_for_current_q = []
-                                st.rerun()
-                            except Exception as e:
-                                st.error(f"Ошибка: {e}")
+            if all_notes and not error_occurred:
+                combined_notes = "\n\n".join(all_notes)
+                
+                if st.button("Начать обучение", type="primary", use_container_width=True):
+                    with st.spinner("Готовлю вопросы по всем файлам..."):
+                        try:
+                            questions = generate_questions(combined_notes, st.session_state.settings)
+
+                            st.session_state.questions_list = questions
+                            st.session_state.current_question_idx = 0
+                            st.session_state.quiz_active = True
+                            st.session_state.user_answers = []
+                            st.session_state.answered = False
+                            st.session_state.history_saved_for_this_quiz = False
+                            st.session_state.selected_options_for_current_q = []
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Ошибка генерации вопросов: {e}")
         else:
             st.markdown("""
             <div style="text-align: center; color: var(--text-muted); margin-top: 1.5rem; font-size: 0.9rem;">
-                ✦ Перетащите файл сюда или нажмите кнопку выше
+                ✦ Перетащите файлы сюда или нажмите кнопку выше
             </div>
         </div>
             """, unsafe_allow_html=True)
@@ -799,30 +838,21 @@ def apply_theme():
     [data-testid="stPills"] button[aria-checked="true"], [data-testid="stPills"] button[aria-pressed="true"] { background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important; border-color: transparent !important; color: #ffffff !important; font-weight: 600 !important; }
     [data-testid="stPills"] button[aria-checked="false"] { background-color: var(--pill-bg) !important; background-image: none !important; color: var(--pill-text) !important; border: 1.5px solid var(--pill-border) !important; }
 
-    /* --- БЛОК ЗАГРУЗКИ ФАЙЛА (ГРАДИЕНТНАЯ КНОПКА) --- */
     [data-testid="stFileUploader"] { 
         border: 2px dashed var(--glass-border) !important; 
         border-radius: 20px !important; 
-        background-color: var(--panel-bg) !important; 
+        background-color: #ffffff !important; 
         padding: 10px !important; 
     }
-    /* Стилизация кнопки внутри загрузчика */
-    [data-testid="stFileUploader"] button {
-        background: linear-gradient(135deg, var(--accent) 0%, var(--accent-2) 100%) !important;
-        color: #ffffff !important;
-        border: 0 !important;
-        border-radius: 12px !important;
-        padding: 0.5rem 1.2rem !important;
-        font-family: 'Montserrat', sans-serif !important;
-        font-size: 0.9rem !important;
-        font-weight: 600 !important;
-        letter-spacing: 0.05em !important;
-        box-shadow: 0 4px 12px rgba(91, 141, 239, 0.24) !important;
-        transition: all 0.2s !important;
+    [data-testid="stFileUploader"] button { 
+        background-color: #ffffff !important; 
+        color: #1a2842 !important; 
+        border: 1px solid #d0dae8 !important;
     }
     [data-testid="stFileUploader"] button:hover {
-        transform: translateY(-2px) !important;
-        box-shadow: 0 8px 20px rgba(91, 141, 239, 0.4) !important;
+        background-color: #f4f8ff !important;
+        border-color: var(--accent) !important;
+        color: var(--accent) !important;
     }
 
     hr { border: 0; height: 1px; background: linear-gradient(90deg, transparent, var(--panel-border), transparent); margin: 2rem 0; }
@@ -895,21 +925,45 @@ def login_screen():
     st.markdown("<h1 style='text-align: center; margin-top: 5rem;'>Вход в систему</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        with st.form("login_form"):
+        with st.form("auth_form"):
             username = st.text_input("Логин")
             password = st.text_input("Пароль", type="password")
-            submitted = st.form_submit_button("Войти", use_container_width=True)
+            password2 = st.text_input("Повторите пароль", type="password")
             
-            if submitted:
-                if username and password:
-                    st.session_state.logged_in = True
-                    st.session_state.username = username
-                    
-                    st.session_state.quiz_history = load_json_file(get_user_file("history"), [])
-                    st.session_state.weak_data = load_json_file(get_user_file("weak"), [])
-                    st.rerun()
+            btn_col1, btn_col2 = st.columns(2)
+            with btn_col1:
+                login_btn = st.form_submit_button("Войти", use_container_width=True)
+            with btn_col2:
+                reg_btn = st.form_submit_button("Регистрация", use_container_width=True)
+            
+            if login_btn:
+                if not username or not password:
+                    st.error("Заполните логин и пароль")
                 else:
-                    st.error("Введите логин и пароль")
+                    users = load_users()
+                    if username in users and users[username] == password:
+                        st.session_state.logged_in = True
+                        st.session_state.username = username
+                        
+                        st.session_state.quiz_history = load_json_file(get_user_file("history"), [])
+                        st.session_state.weak_data = load_json_file(get_user_file("weak"), [])
+                        st.rerun()
+                    else:
+                        st.error("Неверный логин или пароль")
+            
+            if reg_btn:
+                if not username or not password or not password2:
+                    st.error("Заполните все поля")
+                elif password != password2:
+                    st.error("Пароли не совпадают")
+                else:
+                    users = load_users()
+                    if username in users:
+                        st.error("Пользователь с таким логином уже существует")
+                    else:
+                        users[username] = password
+                        save_users(users)
+                        st.success("Регистрация успешна! Теперь нажмите 'Войти'.")
 
 
 def main():
