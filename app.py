@@ -935,70 +935,44 @@ def login_screen():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
         with st.form("auth_form"):
-            # Переключатель режима (скрытый, управляется кнопками внизу)
-            auth_mode = st.session_state.get("auth_mode", "login")
+            username = st.text_input("Логин")
+            password = st.text_input("Пароль", type="password")
+            password2 = st.text_input("Повторите пароль", type="password")
             
-            if auth_mode == "login":
-                username = st.text_input("Почта или логин")
-                password = st.text_input("Пароль", type="password")
-                st.markdown("<br>", unsafe_allow_html=True)
-                
-                btn_col1, btn_col2 = st.columns(2)
-                with btn_col1:
-                    login_btn = st.form_submit_button("Войти", use_container_width=True)
-                with btn_col2:
-                    switch_btn = st.form_submit_button("Регистрация", use_container_width=True)
-                
-                if login_btn:
-                    if not username or not password:
-                        st.error("Заполните логин и пароль")
-                    else:
-                        users = load_users()
-                        if username in users and users[username] == password:
-                            st.session_state.logged_in = True
-                            st.session_state.username = username
-                            st.session_state.quiz_history = load_json_file(get_user_file("history"), [])
-                            st.session_state.weak_data = load_json_file(get_user_file("weak"), [])
-                            st.session_state.auth_mode = "login"
-                            st.rerun()
-                        else:
-                            st.error("Неверный логин или пароль")
-                
-                if switch_btn:
-                    st.session_state.auth_mode = "register"
-                    st.rerun()
+            btn_col1, btn_col2 = st.columns(2)
+            with btn_col1:
+                login_btn = st.form_submit_button("Войти", use_container_width=True)
+            with btn_col2:
+                reg_btn = st.form_submit_button("Регистрация", use_container_width=True)
             
-            else:  # register
-                username = st.text_input("Придумайте почту или логин")
-                password = st.text_input("Придумайте пароль", type="password")
-                password2 = st.text_input("Повторите пароль", type="password")
-                st.markdown("<br>", unsafe_allow_html=True)
-                
-                btn_col1, btn_col2 = st.columns(2)
-                with btn_col1:
-                    reg_btn = st.form_submit_button("Создать аккаунт", use_container_width=True)
-                with btn_col2:
-                    back_btn = st.form_submit_button("Назад (Вход)", use_container_width=True)
-                
-                if reg_btn:
-                    if not username or not password or not password2:
-                        st.error("Заполните все поля")
-                    elif password != password2:
-                        st.error("Пароли не совпадают")
+            if login_btn:
+                if not username or not password:
+                    st.error("Заполните логин и пароль")
+                else:
+                    users = load_users()
+                    if username in users and users[username] == password:
+                        st.session_state.logged_in = True
+                        st.session_state.username = username
+                        
+                        st.session_state.quiz_history = load_json_file(get_user_file("history"), [])
+                        st.session_state.weak_data = load_json_file(get_user_file("weak"), [])
+                        st.rerun()
                     else:
-                        users = load_users()
-                        if username in users:
-                            st.error("Пользователь с таким логином уже существует")
-                        else:
-                            users[username] = password
-                            save_users(users)
-                            st.success("Регистрация успешна! Теперь войдите.")
-                            st.session_state.auth_mode = "login"
-                            st.rerun()
-                
-                if back_btn:
-                    st.session_state.auth_mode = "login"
-                    st.rerun()
+                        st.error("Неверный логин или пароль")
+            
+            if reg_btn:
+                if not username or not password or not password2:
+                    st.error("Заполните все поля")
+                elif password != password2:
+                    st.error("Пароли не совпадают")
+                else:
+                    users = load_users()
+                    if username in users:
+                        st.error("Пользователь с таким логином уже существует")
+                    else:
+                        users[username] = password
+                        save_users(users)
+                        st.success("Регистрация успешна! Теперь нажмите 'Войти'.")
 
 
 def main():
@@ -1047,7 +1021,6 @@ def main():
         st.session_state.username = ""
         st.session_state.quiz_history = []
         st.session_state.weak_data = []
-        st.session_state.auth_mode = "login"
         st.rerun()
 
     if st.session_state.current_page == "test": page_test()
