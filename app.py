@@ -28,7 +28,7 @@ MAX_IMAGE_SIZE = 15 * 1024 * 1024
 DEFAULT_SETTINGS = {
     "question_count": 5,
     "difficulty": "Средний",
-    "time_limit": 60,  # 0 = без ограничения
+    "time_limit": 60,
     "language": "Русский",
     "repeat_enabled": True,
     "repeat_threshold": 2,
@@ -37,7 +37,6 @@ DEFAULT_SETTINGS = {
 
 
 def auth_db():
-    """Create a local SQLite account store if it does not exist."""
     with sqlite3.connect(AUTH_DB) as conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -69,6 +68,7 @@ def render_auth():
         st.session_state.auth_mode = "login"
 
     mode = st.session_state.auth_mode
+
     st.markdown(f"""<div class="auth-brand">
       <div class="auth-brand-title">{APP_NAME}</div>
       <div class="auth-brand-subtitle">Твой личный помощник в учёбе</div>
@@ -199,7 +199,6 @@ def get_gigachat():
         f"{client_id}:{client_secret}".encode("utf-8")
     ).decode("utf-8")
 
-    # Имя модели можно переопределить через GIGACHAT_MODEL.
     model = os.getenv("GIGACHAT_MODEL", "GigaChat-2")
     return GigaChat(
         credentials=credentials,
@@ -210,7 +209,6 @@ def get_gigachat():
 
 
 def response_text(response):
-    """Совместимость с ответами разных версий SDK."""
     if getattr(response, "choices", None):
         message = response.choices[0].message
         content = getattr(message, "content", "")
@@ -247,7 +245,6 @@ def ask_gigachat(prompt, image_bytes=None, image_name="note.png"):
         attachments = None
 
         if image_bytes is not None:
-            # Актуальный SDK принимает файл как (имя, байты).
             uploaded = client.upload_file((image_name, image_bytes), purpose="general")
             file_id = getattr(uploaded, "id_", None) or getattr(uploaded, "id", None)
             if not file_id:
@@ -707,7 +704,6 @@ def page_settings():
 
 
 def apply_theme():
-    """Polished, responsive interface with a blue accent and light/dark themes."""
     theme = st.session_state.settings.get("theme", "Светлая")
     if theme == "Тёмная":
         palette = """
