@@ -40,7 +40,6 @@ def auth_db():
     with sqlite3.connect(AUTH_DB) as conn:
         conn.execute("""CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            full_name TEXT NOT NULL,
             username TEXT NOT NULL UNIQUE COLLATE NOCASE,
             email TEXT NOT NULL UNIQUE COLLATE NOCASE,
             password_hash TEXT NOT NULL,
@@ -151,11 +150,11 @@ def render_auth():
                     else:
                         with sqlite3.connect(AUTH_DB) as conn:
                             user = conn.execute(
-                                "SELECT id, full_name, username, email, password_hash FROM users WHERE username=? OR email=? COLLATE NOCASE",
+                                "SELECT id, username, email, password_hash FROM users WHERE username=? OR email=? COLLATE NOCASE",
                                 (login.strip(), login.strip())
                             ).fetchone()
-                        if user and verify_password(password, user[4]):
-                            st.session_state.auth_user = {"id": user[0], "full_name": user[1], "username": user[2], "email": user[3]}
+                        if user and verify_password(password, user[3]):
+                            st.session_state.auth_user = {"id": user[0], "username": user[1], "email": user[2]}
                             st.rerun()
                         else:
                             st.error("Неверный логин/email или пароль.")
@@ -167,15 +166,14 @@ def render_auth():
                 st.markdown("### Создать аккаунт ✦")
                 st.caption("Заполни данные — это займёт всего минуту")
                 with st.form("register_form", clear_on_submit=True):
-                    full_name = st.text_input("Имя", placeholder="Как к тебе обращаться")
                     username = st.text_input("Логин", placeholder="3–24 символа, латиница и цифры")
                     email = st.text_input("Email", placeholder="name@example.com")
                     new_password = st.text_input("Пароль", type="password", placeholder="Минимум 8 символов")
                     confirm = st.text_input("Повтори пароль", type="password", placeholder="Повтори пароль")
                     register = st.form_submit_button("Создать аккаунт", use_container_width=True)
                 if register:
-                    full_name, username, email = full_name.strip(), username.strip(), email.strip().lower()
-                    if not all([full_name, username, email, new_password, confirm]):
+                    username, email = username.strip(), email.strip().lower()
+                    if not all([username, email, new_password, confirm]):
                         st.error("Заполни все поля регистрации.")
                     elif len(username) < 3 or len(username) > 24 or not re.fullmatch(r"[A-Za-z0-9_.-]+", username):
                         st.error("Логин должен быть 3–24 символа: латинские буквы, цифры, _ . или -.")
@@ -188,7 +186,7 @@ def render_auth():
                     else:
                         try:
                             with sqlite3.connect(AUTH_DB) as conn:
-                                conn.execute("INSERT INTO users(full_name, username, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)", (full_name, username, email, hash_password(new_password), datetime.now().isoformat(timespec="seconds")))
+                                conn.execute("INSERT INTO users(username, email, password_hash, created_at) VALUES (?, ?, ?, ?)", (username, email, hash_password(new_password), datetime.now().isoformat(timespec="seconds")))
                             st.success("Аккаунт создан! Теперь войди.")
                             st.session_state.auth_mode = "login"
                             st.rerun()
@@ -630,23 +628,28 @@ def page_test():
     st.markdown("### 📝 Создать новый тест")
     st.write("Добавь фото конспекта, чтобы подготовить вопросы для тренировки.")
     if not st.session_state.quiz_active and not st.session_state.quiz_finished:
-        upload = st.file_uploader("Фото конспекта", type=["jpg", "jpeg", "png"])
-        if upload:
-            if upload.size > MAX_IMAGE_SIZE:
-                st.error("Файл больше 15 МБ.")
-                return
-            st.image(upload, caption="Загруженный конспект", use_container_width=True)
+        uploaded_files = st.file_uploader("Фото конспекта", type=["jpg", "jpeg", "png"], accept_multiple_files=True)
+        if uploaded_files:
+            for upload in uploaded_files:
+                if upload.size > MAX_IMAGE_SIZE:
+                    st.error(f"Файл {upload.name} больше 15 МБ.")
+                    return
+                st.image(upload, caption=upload.name, use_container_width=True)
             if st.button("Распознать и создать тест", type="primary"):
                 try:
                     with st.spinner("Распознаю текст..."):
-                        notes = recognize_notes(upload.getvalue(), upload.name)
-                    if not notes.strip():
-                        st.error("Текст на изображении не распознан.")
+                        all_notes = []
+                        for upload in uploaded_files:
+                            notes = recognize_notes(upload.getvalue(), upload.name)
+                            all_notes.append(notes)
+                        combined_notes = "\n\n".join(all_notes)
+                    if not combined_notes.strip():
+                        st.error("Текст на изображениях не распознан.")
                         return
                     with st.expander("Распознанный текст"):
-                        st.write(notes)
+                        st.write(combined_notes)
                     with st.spinner("Создаю вопросы..."):
-                        questions = generate_questions(notes, st.session_state.settings)
+                        questions = generate_questions(combined_notes, st.session_state.settings)
                     start_quiz(questions)
                     st.rerun()
                 except Exception as exc:
@@ -965,7 +968,7 @@ def main():
         unsafe_allow_html=True,
     )
     user = st.session_state.auth_user
-    st.sidebar.caption(f"👤 {user['full_name']}")
+    st.sidebar.caption(f"👤 {user['username']}")
     if st.sidebar.button("Выйти из аккаунта", use_container_width=True):
         st.session_state.auth_user = None
         st.rerun()
