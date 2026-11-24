@@ -69,10 +69,10 @@ def render_auth():
         st.session_state.auth_mode = "login"
 
     mode = st.session_state.auth_mode
-    st.markdown("""<div style="max-width:700px;margin:2.5rem auto .8rem;text-align:center;">
-      <div style="font-size:2.25rem;font-weight:850;letter-spacing:-.045em;color:#18243b">AI Study Space</div>
-      <div style="margin-top:.45rem;color:#71829d">Твой личный помощник в учёбе</div>
-      <div style="margin:1.2rem auto 0;width:58px;height:5px;border-radius:99px;background:linear-gradient(90deg,#3478ed,#65c8f3)"></div>
+    st.markdown(f"""<div class="auth-brand">
+      <div class="auth-brand-title">{APP_NAME}</div>
+      <div class="auth-brand-subtitle">Твой личный помощник в учёбе</div>
+      <div class="auth-brand-accent"></div>
     </div>""", unsafe_allow_html=True)
 
     _, center, _ = st.columns([1, 1.45, 1])
@@ -853,12 +853,19 @@ def apply_theme():
     [data-testid="stSlider"] [role="slider"] { border-color: var(--accent); }
     hr { border-color: var(--panel-border); opacity: .8; margin: 1.6rem 0; }
     [data-testid="stStatusWidget"] { border-radius: 12px; }
-    /* Auth card: match the site's pale-blue canvas and white rounded panels */
-    .st-key-auth_shell { background: var(--panel-bg) !important; border: 1px solid var(--panel-border) !important; border-radius: 22px !important; padding: 1.4rem !important; box-shadow: var(--shadow) !important; }
-    .st-key-auth_shell input, .st-key-auth_shell [data-baseweb="input"] > div { background: var(--panel-soft) !important; color: var(--text-main) !important; border: 1px solid var(--panel-border) !important; border-radius: 11px !important; }
-    .st-key-auth_shell input { -webkit-text-fill-color: var(--text-main) !important; }
-    .st-key-auth_shell label, .st-key-auth_shell p, .st-key-auth_shell h3 { color: var(--text-main) !important; }
-    .st-key-auth_shell button { border-radius: 12px !important; }
+    /* Auth screen uses the same blue-cyan accent as the main app */
+    .auth-brand { max-width:700px; margin:2.3rem auto 1.1rem; text-align:center; }
+    .auth-brand-title { font-size:2.2rem; font-weight:850; letter-spacing:-.045em; color:var(--text-main); }
+    .auth-brand-subtitle { margin-top:.45rem; color:var(--text-muted); font-size:.98rem; }
+    .auth-brand-accent { margin:1.15rem auto 0; width:58px; height:5px; border-radius:99px; background:linear-gradient(90deg,#2864e8,#66c8f2); }
+    .st-key-auth_shell { background:var(--panel-bg) !important; border:1px solid var(--panel-border) !important; border-radius:22px !important; padding:1.25rem !important; box-shadow:var(--shadow) !important; }
+    .st-key-auth_shell input, .st-key-auth_shell [data-baseweb="input"] > div, .st-key-auth_shell [data-baseweb="input"] { background:var(--panel-soft) !important; color:var(--text-main) !important; border:1px solid var(--panel-border) !important; border-radius:11px !important; box-shadow:none !important; }
+    .st-key-auth_shell input, .st-key-auth_shell input::placeholder { -webkit-text-fill-color:var(--text-main) !important; color:var(--text-main) !important; }
+    .st-key-auth_shell input::placeholder { opacity:.58 !important; }
+    .st-key-auth_shell label, .st-key-auth_shell p, .st-key-auth_shell h3, .st-key-auth_shell [data-testid="stMarkdownContainer"] { color:var(--text-main) !important; }
+    .st-key-auth_shell button { border-radius:12px !important; }
+    .st-key-auth_shell [data-testid="stForm"] { background:transparent !important; border:0 !important; box-shadow:none !important; padding:0 !important; }
+    .st-key-auth_shell [data-testid="stAlert"] { background:var(--panel-soft) !important; color:var(--text-main) !important; border:1px solid var(--panel-border) !important; }
     @media (max-width: 700px) {
         [data-testid="stMain"] > div { padding: 1.1rem .8rem 2rem; }
         h1 { font-size: 1.8rem; }
