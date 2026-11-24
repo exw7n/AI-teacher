@@ -65,58 +65,79 @@ def verify_password(password, stored_hash):
 
 def render_auth():
     auth_db()
-    st.markdown("<div style='max-width:760px;margin:4vh auto 0;text-align:center;'>"
-                "<div style='font-size:2.4rem;font-weight:850;letter-spacing:-.04em;'>AI Study Space</div>"
-                "<p style='color:#6b7b95;'>Твой личный помощник в учёбе</p></div>", unsafe_allow_html=True)
-    left, right = st.columns([1, 1], gap="large")
-    with left:
-        st.markdown("### Вход")
-        with st.form("login_form", clear_on_submit=False):
-            login = st.text_input("Логин или email", placeholder="Введите логин / email")
-            password = st.text_input("Пароль", type="password", placeholder="Введите пароль")
-            submitted = st.form_submit_button("Войти", use_container_width=True)
-        if submitted:
-            if not login.strip() or not password:
-                st.error("Заполните логин и пароль.")
-            else:
-                with sqlite3.connect(AUTH_DB) as conn:
-                    user = conn.execute("SELECT id, full_name, username, email, password_hash FROM users WHERE username=? OR email=? COLLATE NOCASE", (login.strip(), login.strip())).fetchone()
-                if user and verify_password(password, user[4]):
-                    st.session_state.auth_user = {"id": user[0], "full_name": user[1], "username": user[2], "email": user[3]}
-                    st.rerun()
-                else:
-                    st.error("Неверный логин/email или пароль.")
-    with right:
-        st.markdown("### Регистрация")
-        st.caption("Новый пользователь? Создай личный аккаунт.")
-        with st.form("register_form", clear_on_submit=True):
-            full_name = st.text_input("Имя", placeholder="Как к тебе обращаться")
-            username = st.text_input("Логин", placeholder="Придумай логин (3–24 символа)")
-            email = st.text_input("Email", placeholder="name@example.com")
-            new_password = st.text_input("Пароль", type="password", placeholder="Минимум 8 символов")
-            confirm = st.text_input("Повтори пароль", type="password", placeholder="Повтори пароль")
-            register = st.form_submit_button("Создать аккаунт", use_container_width=True)
-        if register:
-            full_name, username, email = full_name.strip(), username.strip(), email.strip().lower()
-            if not all([full_name, username, email, new_password, confirm]):
-                st.error("Заполни все поля регистрации.")
-            elif len(username) < 3 or len(username) > 24 or not re.fullmatch(r"[A-Za-z0-9_.-]+", username):
-                st.error("Логин должен быть 3–24 символа: латинские буквы, цифры, _ . или -.")
-            elif not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
-                st.error("Укажи корректный email.")
-            elif len(new_password) < 8:
-                st.error("Пароль должен быть не короче 8 символов.")
-            elif new_password != confirm:
-                st.error("Пароли не совпадают.")
-            else:
-                try:
-                    with sqlite3.connect(AUTH_DB) as conn:
-                        conn.execute("INSERT INTO users(full_name, username, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)", (full_name, username, email, hash_password(new_password), datetime.now().isoformat(timespec="seconds")))
-                    st.success("Аккаунт создан! Теперь войди в него в форме слева.")
-                except sqlite3.IntegrityError:
-                    st.error("Такой логин или email уже зарегистрирован. Выбери другой.")
-    st.caption("Регистрация сохраняется в локальной базе SQLite. Подтверждение email пока не подключено.")
+    if "auth_mode" not in st.session_state:
+        st.session_state.auth_mode = "login"
 
+    mode = st.session_state.auth_mode
+    st.markdown("""<div style="max-width:700px;margin:2.5rem auto .8rem;text-align:center;">
+      <div style="font-size:2.25rem;font-weight:850;letter-spacing:-.045em;color:#18243b">AI Study Space</div>
+      <div style="margin-top:.45rem;color:#71829d">Твой личный помощник в учёбе</div>
+      <div style="margin:1.2rem auto 0;width:58px;height:5px;border-radius:99px;background:linear-gradient(90deg,#3478ed,#65c8f3)"></div>
+    </div>""", unsafe_allow_html=True)
+
+    _, center, _ = st.columns([1, 1.45, 1])
+    with center:
+        with st.container(border=True, key="auth_shell"):
+            if mode == "login":
+                st.markdown("### С возвращением ✦")
+                st.caption("Войди, чтобы продолжить учёбу")
+                with st.form("login_form", clear_on_submit=False):
+                    login = st.text_input("Логин или email", placeholder="Введите логин или email")
+                    password = st.text_input("Пароль", type="password", placeholder="Введите пароль")
+                    submitted = st.form_submit_button("Войти", use_container_width=True)
+                if submitted:
+                    if not login.strip() or not password:
+                        st.error("Заполните логин и пароль.")
+                    else:
+                        with sqlite3.connect(AUTH_DB) as conn:
+                            user = conn.execute(
+                                "SELECT id, full_name, username, email, password_hash FROM users WHERE username=? OR email=? COLLATE NOCASE",
+                                (login.strip(), login.strip())
+                            ).fetchone()
+                        if user and verify_password(password, user[4]):
+                            st.session_state.auth_user = {"id": user[0], "full_name": user[1], "username": user[2], "email": user[3]}
+                            st.rerun()
+                        else:
+                            st.error("Неверный логин/email или пароль.")
+                st.markdown("<div style='text-align:center;color:#7b8aa4;margin:.65rem 0'>Нет аккаунта?</div>", unsafe_allow_html=True)
+                if st.button("Зарегистрироваться", use_container_width=True, key="show_register"):
+                    st.session_state.auth_mode = "register"
+                    st.rerun()
+            else:
+                st.markdown("### Создать аккаунт ✦")
+                st.caption("Заполни данные — это займёт всего минуту")
+                with st.form("register_form", clear_on_submit=True):
+                    full_name = st.text_input("Имя", placeholder="Как к тебе обращаться")
+                    username = st.text_input("Логин", placeholder="3–24 символа, латиница и цифры")
+                    email = st.text_input("Email", placeholder="name@example.com")
+                    new_password = st.text_input("Пароль", type="password", placeholder="Минимум 8 символов")
+                    confirm = st.text_input("Повтори пароль", type="password", placeholder="Повтори пароль")
+                    register = st.form_submit_button("Создать аккаунт", use_container_width=True)
+                if register:
+                    full_name, username, email = full_name.strip(), username.strip(), email.strip().lower()
+                    if not all([full_name, username, email, new_password, confirm]):
+                        st.error("Заполни все поля регистрации.")
+                    elif len(username) < 3 or len(username) > 24 or not re.fullmatch(r"[A-Za-z0-9_.-]+", username):
+                        st.error("Логин должен быть 3–24 символа: латинские буквы, цифры, _ . или -.")
+                    elif not re.fullmatch(r"[^\s@]+@[^\s@]+\.[^\s@]+", email):
+                        st.error("Укажи корректный email.")
+                    elif len(new_password) < 8:
+                        st.error("Пароль должен быть не короче 8 символов.")
+                    elif new_password != confirm:
+                        st.error("Пароли не совпадают.")
+                    else:
+                        try:
+                            with sqlite3.connect(AUTH_DB) as conn:
+                                conn.execute("INSERT INTO users(full_name, username, email, password_hash, created_at) VALUES (?, ?, ?, ?, ?)", (full_name, username, email, hash_password(new_password), datetime.now().isoformat(timespec="seconds")))
+                            st.success("Аккаунт создан! Теперь войди.")
+                            st.session_state.auth_mode = "login"
+                            st.rerun()
+                        except sqlite3.IntegrityError:
+                            st.error("Такой логин или email уже зарегистрирован. Выбери другой.")
+                if st.button("← Вернуться ко входу", use_container_width=True, key="back_to_login"):
+                    st.session_state.auth_mode = "login"
+                    st.rerun()
+    st.markdown("<div style='text-align:center;margin-top:1rem;color:#8391a7;font-size:.8rem'>Ваши данные аккаунта хранятся в базе приложения.</div>", unsafe_allow_html=True)
 
 def load_weak_questions():
     if not WEAK_FILE.exists():
@@ -832,6 +853,12 @@ def apply_theme():
     [data-testid="stSlider"] [role="slider"] { border-color: var(--accent); }
     hr { border-color: var(--panel-border); opacity: .8; margin: 1.6rem 0; }
     [data-testid="stStatusWidget"] { border-radius: 12px; }
+    /* Auth card: match the site's pale-blue canvas and white rounded panels */
+    .st-key-auth_shell { background: var(--panel-bg) !important; border: 1px solid var(--panel-border) !important; border-radius: 22px !important; padding: 1.4rem !important; box-shadow: var(--shadow) !important; }
+    .st-key-auth_shell input, .st-key-auth_shell [data-baseweb="input"] > div { background: var(--panel-soft) !important; color: var(--text-main) !important; border: 1px solid var(--panel-border) !important; border-radius: 11px !important; }
+    .st-key-auth_shell input { -webkit-text-fill-color: var(--text-main) !important; }
+    .st-key-auth_shell label, .st-key-auth_shell p, .st-key-auth_shell h3 { color: var(--text-main) !important; }
+    .st-key-auth_shell button { border-radius: 12px !important; }
     @media (max-width: 700px) {
         [data-testid="stMain"] > div { padding: 1.1rem .8rem 2rem; }
         h1 { font-size: 1.8rem; }
