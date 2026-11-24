@@ -32,7 +32,7 @@ DEFAULT_SETTINGS = {
     "language": "Русский",
     "repeat_enabled": True,
     "repeat_threshold": 2,
-    "theme": "Светлая",
+    "theme": "Тёмная",
 }
 
 
@@ -68,6 +68,66 @@ def render_auth():
         st.session_state.auth_mode = "login"
 
     mode = st.session_state.auth_mode
+
+    # --- Стили для экрана входа (в тон основному сайту) ---
+    theme = st.session_state.settings.get("theme", "Тёмная")
+    if theme == "Тёмная":
+        palette = """
+        :root {
+            --bg: #0a0f1e;
+            --panel: rgba(20, 28, 48, 0.85);
+            --border: rgba(255, 255, 255, 0.08);
+            --text: #eef2fb;
+            --muted: #8593ad;
+            --accent: #638cff;
+            --accent-2: #a878ff;
+        }
+        """
+    else:
+        palette = """
+        :root {
+            --bg: #f0f7ff;
+            --panel: #ffffff;
+            --border: rgba(160, 180, 220, 0.35);
+            --text: #1a2842;
+            --muted: #5a6b88;
+            --accent: #5b8def;
+            --accent-2: #8a7bea;
+        }
+        """
+
+    st.markdown(f"""
+    <style>
+    {palette}
+    .stApp, [data-testid="stAppViewContainer"] {{
+        background: radial-gradient(ellipse 80% 60% at 15% 0%, rgba(99, 140, 255, 0.14), transparent 70%),
+                    radial-gradient(ellipse 70% 50% at 100% 100%, rgba(168, 120, 255, 0.10), transparent 70%),
+                    linear-gradient(160deg, var(--bg) 0%, #0f1628 100%);
+        color: var(--text);
+    }}
+    [data-testid="stHeader"] {{ background: transparent; height: 0; }}
+    #MainMenu, footer {{ visibility: hidden; }}
+
+    .auth-brand {{ max-width: 700px; margin: 3rem auto 1.5rem; text-align: center; }}
+    .auth-brand-title {{ font-size: 2.4rem; font-weight: 800; letter-spacing: -0.045em; color: var(--text); }}
+    .auth-brand-subtitle {{ margin-top: 0.5rem; color: var(--muted); font-size: 1rem; }}
+    .auth-brand-accent {{ margin: 1.2rem auto 0; width: 70px; height: 5px; border-radius: 99px; background: linear-gradient(90deg, var(--accent), var(--accent-2)); }}
+
+    .st-key-auth_shell {{ background: var(--panel) !important; border: 1px solid var(--border) !important; border-radius: 24px !important; padding: 2rem !important; box-shadow: 0 20px 60px rgba(0,0,0,0.3) !important; backdrop-filter: blur(20px) !important; }}
+    .st-key-auth_shell h3 {{ font-size: 1.4rem; font-weight: 700; color: var(--text) !important; }}
+    .st-key-auth_shell p, .st-key-auth_shell label, .st-key-auth_shell .stMarkdown {{ color: var(--text) !important; }}
+    .st-key-auth_shell input, .st-key-auth_shell [data-baseweb="input"] > div, .st-key-auth_shell [data-baseweb="input"] {{ background: rgba(255,255,255,0.04) !important; color: var(--text) !important; border: 1px solid var(--border) !important; border-radius: 12px !important; box-shadow: none !important; }}
+    .st-key-auth_shell input::placeholder {{ color: var(--muted) !important; }}
+    .st-key-auth_shell button {{ border-radius: 12px !important; background: linear-gradient(135deg, var(--accent), var(--accent-2)) !important; color: white !important; font-weight: 600 !important; padding: 0.75rem !important; box-shadow: 0 8px 20px rgba(99,140,255,0.25) !important; }}
+    .st-key-auth_shell button:hover {{ transform: translateY(-1px); box-shadow: 0 12px 26px rgba(99,140,255,0.4) !important; }}
+    .st-key-auth_shell [data-testid="stForm"] {{ background: transparent !important; border: 0 !important; box-shadow: none !important; padding: 0 !important; }}
+    .st-key-auth_shell [data-testid="stAlert"] {{ background: rgba(99,140,255,0.1) !important; color: var(--text) !important; border: 1px solid var(--border) !important; }}
+
+    @media (max-width: 700px) {{
+        .auth-brand-title {{ font-size: 1.9rem; }}
+    }}
+    </style>
+    """, unsafe_allow_html=True)
 
     st.markdown(f"""<div class="auth-brand">
       <div class="auth-brand-title">{APP_NAME}</div>
@@ -704,7 +764,7 @@ def page_settings():
 
 
 def apply_theme():
-    theme = st.session_state.settings.get("theme", "Светлая")
+    theme = st.session_state.settings.get("theme", "Тёмная")
     if theme == "Тёмная":
         palette = """
         :root {
