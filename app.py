@@ -106,6 +106,7 @@ def init_state():
         "logged_in": False,
         "username": "",
         "auth_mode": "login",
+        "recognized_notes_cache": {},
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -468,14 +469,24 @@ def page_test():
                     st.image(image_bytes, caption=upload.name, use_container_width=True)
 
                 if image_bytes:
-                    with st.spinner(f"Распознаю текст из {upload.name}..."):
-                        try:
-                            notes = recognize_notes(image_bytes, upload.name)
-                            all_notes.append(notes)
-                        except Exception as e:
-                            st.error(f"Ошибка распознавания {upload.name}: {e}")
-                            error_occurred = True
-                            break
+                    # Reuse OCR text across Streamlit reruns for the same uploaded file.
+                    file_cache_key = hashlib.sha256(
+                        upload.name.encode("utf-8") + file_bytes
+                    ).hexdigest()
+                    cached_notes = st.session_state.recognized_notes_cache.get(file_cache_key)
+                    if cached_notes is not None:
+                        notes = cached_notes
+                        all_notes.append(notes)
+                    else:
+                        with st.spinner(f"Распознаю текст из {upload.name}..."):
+                            try:
+                                notes = recognize_notes(image_bytes, upload.name)
+                                st.session_state.recognized_notes_cache[file_cache_key] = notes
+                                all_notes.append(notes)
+                            except Exception as e:
+                                st.error(f"Ошибка распознавания {upload.name}: {e}")
+                                error_occurred = True
+                                break
 
             if all_notes and not error_occurred:
                 combined_notes = "\n\n".join(all_notes)
